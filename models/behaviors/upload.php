@@ -90,7 +90,8 @@ class UploadBehavior extends ModelBehavior {
           @chmod($destDir, 0777);
         }
         if (is_dir($destDir) && is_writable($destDir)) {
-          if (@move_uploaded_file($toWrite['tmp_name'], $settings['path'])) {
+          // rename() should actually be move_uploaded_file()
+          if (@rename($toWrite['tmp_name'], $settings['path'])) {
             if($this->maxWidthSize) {
               $this->_resize($settings['path'], $settings['path'], $this->maxWidthSize.'w');
             }
@@ -215,7 +216,7 @@ class UploadBehavior extends ModelBehavior {
       default:
           return false;
     }
-    if ($src = $createHandler($destFile)) {
+    if ($src = @$createHandler($destFile)) {
       $srcW = imagesx($src);
       $srcH = imagesy($src);
 
