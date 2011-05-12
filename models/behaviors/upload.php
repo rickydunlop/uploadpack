@@ -23,7 +23,7 @@ class UploadBehavior extends ModelBehavior {
 
   function setup(&$model, $settings = array()) {
     $defaults = array(
-      'path' => ':webroot/upload/:model/:id/:basename_:style.:extension',
+      'path' => ':webroot/upload/:model/:id/:style-:basename.:extension',
       'styles' => array(),
       'resizeToMaxWidth' => false
     );
@@ -92,6 +92,7 @@ class UploadBehavior extends ModelBehavior {
         if (is_dir($destDir) && is_writable($destDir)) {
           // rename() should actually be move_uploaded_file()
           if (@rename($toWrite['tmp_name'], $settings['path'])) {
+			chmod($settings['path'], 0644);
             if($this->maxWidthSize) {
               $this->_resize($settings['path'], $settings['path'], $this->maxWidthSize.'w');
             }
