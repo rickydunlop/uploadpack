@@ -21,7 +21,7 @@ class UploadBehavior extends ModelBehavior {
   
   var $maxWidthSize = false;
 
-  function setup(&$model, $settings = array()) {
+  function setup($model, $settings = array()) {
     $defaults = array(
       'path' => ':webroot/upload/:model/:id/:style-:basename.:extension',
       'styles' => array(),
@@ -34,7 +34,7 @@ class UploadBehavior extends ModelBehavior {
     }
   }
   
-  function beforeSave(&$model) {
+  function beforeSave($model) {
     $this->_reset();
     foreach (self::$__settings[$model->name] as $field => $settings) {
       if (!empty($model->data[$model->name][$field]) && is_array($model->data[$model->name][$field]) && file_exists($model->data[$model->name][$field]['tmp_name'])) {
@@ -51,24 +51,24 @@ class UploadBehavior extends ModelBehavior {
     return true;
   }
   
-  function afterSave(&$model, $create) {
+  function afterSave($model, $create) {
     if (!$create) {
       $this->_deleteFiles($model);
     }
     $this->_writeFiles($model);
   }
   
-  function beforeDelete(&$model) {
+  function beforeDelete($model) {
     $this->_reset();
     $this->_prepareToDeleteFiles($model);
     return true;
   }
   
-  function afterDelete(&$model) {
+  function afterDelete($model) {
     $this->_deleteFiles($model);
   }
 
-  function beforeValidate(&$model) {
+  function beforeValidate($model) {
     foreach (self::$__settings[$model->name] as $field => $settings) {
       $data = $model->data[$model->name][$field];
 
@@ -93,7 +93,7 @@ class UploadBehavior extends ModelBehavior {
     $data['name'] = end(explode('/', $url));
     $data['tmp_name'] = tempnam(sys_get_temp_dir(), $data['name']) . '.' . end(explode('.', $url));
 
-    App::import('Core', 'HttpSocket');
+    App::uses('HttpSocket', 'Network/Http');
     $httpSocket = new HttpSocket();
 
     $raw = $httpSocket->get($url);
@@ -106,7 +106,7 @@ class UploadBehavior extends ModelBehavior {
     return $data;
   }
 
-  function _prepareToWriteFiles(&$model, $field) {
+  function _prepareToWriteFiles($model, $field) {
     $this->toWrite[$field] = $model->data[$model->name][$field];
     // make filename URL friendly by using Cake's Inflector
     $this->toWrite[$field]['name'] = 
@@ -114,7 +114,7 @@ class UploadBehavior extends ModelBehavior {
         substr($this->toWrite[$field]['name'], strrpos($this->toWrite[$field]['name'], '.')); // extension
   }
   
-  function _writeFiles(&$model) {
+  function _writeFiles($model) {
     if (!empty($this->toWrite)) {
       foreach ($this->toWrite as $field => $toWrite) {
         $settings = $this->_interpolate($model, $field, $toWrite['name'], 'original');
@@ -143,11 +143,11 @@ class UploadBehavior extends ModelBehavior {
     }
   }
   
-  function _prepareToDeleteFiles(&$model, $field = null, $forceRead = false) {
+  function _prepareToDeleteFiles($model, $field = null, $forceRead = false) {
     $needToRead = true;
     if ($field === null) {
       $fields = array_keys(self::$__settings[$model->name]);
-      foreach ($fields as &$field) {
+      foreach ($fields as $field) {
         $field .= '_file_name';
       }
     } else {
@@ -177,7 +177,7 @@ class UploadBehavior extends ModelBehavior {
     $this->toDelete['id'] = $model->id;
   }
   
-  function _deleteFiles(&$model) {
+  function _deleteFiles($model) {
     foreach (self::$__settings[$model->name] as $field => $settings) {
       if (!empty($this->toDelete[$field.'_file_name'])) {
         $styles = array_keys($settings['styles']);
@@ -192,7 +192,7 @@ class UploadBehavior extends ModelBehavior {
     }
   }
   
-  function _interpolate(&$model, $field, $filename, $style) {
+  function _interpolate($model, $field, $filename, $style) {
     return self::interpolate($model->name, $model->id, $field, $filename, $style);
   }
   
@@ -238,7 +238,7 @@ class UploadBehavior extends ModelBehavior {
     $src = null;
     $createHandler = null;
     $outputHandler = null;
-    switch (low($pathinfo['extension'])) {
+    switch (strtolower($pathinfo['extension'])) {
       case 'gif':
         $createHandler = 'imagecreatefromgif';
         $outputHandler = 'imagegif';
@@ -321,7 +321,7 @@ class UploadBehavior extends ModelBehavior {
     return false;
   }
   
-  function attachmentMinSize(&$model, $value, $min) {
+  function attachmentMinSize($model, $value, $min) {
     $value = array_shift($value);
     if (!empty($value['tmp_name'])) {
       return (int)$min <= (int)$value['size'];
@@ -329,7 +329,7 @@ class UploadBehavior extends ModelBehavior {
     return true;
   }
   
-  function attachmentMaxSize(&$model, $value, $max) {
+  function attachmentMaxSize($model, $value, $max) {
     $value = array_shift($value);
     if (!empty($value['tmp_name'])) {
       return (int)$value['size'] <= (int)$max;
@@ -337,7 +337,7 @@ class UploadBehavior extends ModelBehavior {
     return true;
   }
   
-  function attachmentContentType(&$model, $value, $contentTypes) {
+  function attachmentContentType($model, $value, $contentTypes) {
     $value = array_shift($value);
     if (!is_array($contentTypes)) {
       $contentTypes = array($contentTypes);
@@ -357,7 +357,7 @@ class UploadBehavior extends ModelBehavior {
     return true;
   }
   
-  function attachmentPresence(&$model, $value) {
+  function attachmentPresence($model, $value) {
     $keys = array_keys($value);
     $field = $keys[0];
     $value = array_shift($value);
@@ -378,15 +378,15 @@ class UploadBehavior extends ModelBehavior {
     }
     return false;
   }
-  function minWidth(&$model, $value, $minWidth) {
+  function minWidth($model, $value, $minWidth) {
     return $this->_validateDimension($value, 'min', 'x', $minWidth);
   }
 
-  function minHeight(&$model, $value, $minHeight) {
+  function minHeight($model, $value, $minHeight) {
     return $this->_validateDimension($value, 'min', 'y', $minHeight);
   }
 
-  function maxWidth(&$model, $value, $maxWidth) {
+  function maxWidth($model, $value, $maxWidth) {
     $keys = array_keys($value);
     $field = $keys[0];
     $settings = self::$__settings[$model->name][$field];
@@ -398,7 +398,7 @@ class UploadBehavior extends ModelBehavior {
     }
   }
 
-  function maxHeight(&$model, $value, $maxHeight) {
+  function maxHeight($model, $value, $maxHeight) {
     return $this->_validateDimension($value, 'max', 'y', $maxHeight);
   }
 
