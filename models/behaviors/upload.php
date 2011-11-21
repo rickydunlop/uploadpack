@@ -25,7 +25,8 @@ class UploadBehavior extends ModelBehavior {
     $defaults = array(
       'path' => ':webroot/upload/:model/:id/:style-:basename.:extension',
       'styles' => array(),
-      'resizeToMaxWidth' => false
+      'resizeToMaxWidth' => false,
+      'quality' => 75
     );
     
     foreach ($settings as $field => $array) {
@@ -66,12 +67,45 @@ class UploadBehavior extends ModelBehavior {
   function afterDelete(&$model) {
     $this->_deleteFiles($model);
   }
-  
+
+  function beforeValidate(&$model) {
+    foreach (self::$__settings[$model->name] as $field => $settings) {
+      $data = $model->data[$model->name][$field];
+
+      if ((empty($data) || is_array($data) && empty($data['tmp_name'])) && !empty($settings['urlField']) && !empty($model->data[$model->name][$settings['urlField']])) {
+        $data = $model->data[$model->name][$settings['urlField']];
+      }
+
+      if (!is_array($data)) {
+        $model->data[$model->name][$field] = $this->_fetchFromUrl($data);
+      }
+    }
+    return true;
+  }
+
   function _reset() {
     $this->toWrite = null;
     $this->toDelete = null;
   }
   
+  function _fetchFromUrl($url) {
+    $data = array('remote' => true);
+    $data['name'] = end(explode('/', $url));
+    $data['tmp_name'] = tempnam(sys_get_temp_dir(), $data['name']) . '.' . end(explode('.', $url));
+
+    App::import('Core', 'HttpSocket');
+    $httpSocket = new HttpSocket();
+
+    $raw = $httpSocket->get($url);
+    $response = $httpSocket->response;
+
+    $data['size'] = strlen($raw);
+    $data['type'] = reset(explode(';', $response['header']['Content-Type']));
+
+    file_put_contents($data['tmp_name'], $raw);
+    return $data;
+  }
+
   function _prepareToWriteFiles(&$model, $field) {
     $this->toWrite[$field] = $model->data[$model->name][$field];
     // make filename URL friendly by using Cake's Inflector
@@ -90,16 +124,18 @@ class UploadBehavior extends ModelBehavior {
           @chmod($destDir, 0777);
         }
         if (is_dir($destDir) && is_writable($destDir)) {
-          // rename() should actually be move_uploaded_file()
-          if (@rename($toWrite['tmp_name'], $settings['path'])) {
+          $move = !empty($toWrite['remote']) ? 'rename' : 'move_uploaded_file';
+          if (@$move($toWrite['tmp_name'], $settings['path'])) {
 			// Some bug with the wrong permissions on upload
-			chmod($settings['path'], 0644);
+			if ($toWrite['remote']) {
+				chmod($settings['path'], 0644);
+			}
             if($this->maxWidthSize) {
-              $this->_resize($settings['path'], $settings['path'], $this->maxWidthSize.'w');
+              $this->_resize($settings['path'], $settings['path'], $this->maxWidthSize.'w', $settings['quality']);
             }
             foreach ($settings['styles'] as $style => $geometry) {
               $newSettings = $this->_interpolate($model, $field, $toWrite['name'], $style);
-              $this->_resize($settings['path'], $newSettings['path'], $geometry);
+              $this->_resize($settings['path'], $newSettings['path'], $geometry, $settings['quality']);
             }
           }
         }
@@ -195,8 +231,9 @@ class UploadBehavior extends ModelBehavior {
     return $pathinfo;
   }
 
-  function _resize($srcFile, $destFile, $geometry) {
+  function _resize($srcFile, $destFile, $geometry, $quality = 75) {
     copy($srcFile, $destFile);
+    @chmod($destFile, 0777);
     $pathinfo = UploadBehavior::_pathinfo($srcFile);
     $src = null;
     $createHandler = null;
@@ -214,6 +251,7 @@ class UploadBehavior extends ModelBehavior {
       case 'png':
         $createHandler = 'imagecreatefrompng';
         $outputHandler = 'imagepng';
+        $quality = null;
         break;
       default:
           return false;
@@ -277,7 +315,7 @@ class UploadBehavior extends ModelBehavior {
       $img = imagecreatetruecolor($destW, $destH);
       imagefill($img, 0, 0, imagecolorallocate($img, 255, 255, 255));
       imagecopyresampled($img, $src, ($destW-$resizeW)/2, ($destH-$resizeH)/2, 0, 0, $resizeW, $resizeH, $srcW, $srcH);
-      $outputHandler($img, $destFile);
+      $outputHandler($img, $destFile, $quality);
       return true;
     }
     return false;
@@ -393,4 +431,3 @@ class UploadBehavior extends ModelBehavior {
     return false;
   }
 }
-?>
