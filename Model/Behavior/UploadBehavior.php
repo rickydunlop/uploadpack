@@ -129,7 +129,7 @@ class UploadBehavior extends ModelBehavior {
           $move = !empty($toWrite['remote']) ? 'rename' : 'move_uploaded_file';
           if (@$move($toWrite['tmp_name'], $settings['path'])) {
 			// Some bug with the wrong permissions on upload
-			if ($toWrite['remote']) {
+			if (!empty($toWrite['remote'])) {
 				chmod($settings['path'], 0644);
 			}
             if($this->maxWidthSize) {
