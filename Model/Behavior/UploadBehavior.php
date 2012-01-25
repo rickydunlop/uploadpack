@@ -149,7 +149,7 @@ class UploadBehavior extends ModelBehavior {
     $needToRead = true;
     if ($field === null) {
       $fields = array_keys(self::$__settings[$model->name]);
-      foreach ($fields as $field) {
+      foreach ($fields as &$field) {
         $field .= '_file_name';
       }
     } else {
