@@ -199,7 +199,7 @@ class UploadBehavior extends ModelBehavior {
   }
   
   static function interpolate($modelName, $modelId, $field, $filename, $style = 'original', $defaults = array()) {
-    $pathinfo = UploadBehavior::_pathinfo($filename);
+    $pathinfo = pathinfo($filename);
     $interpolations = array_merge(array(
       'app' => preg_replace('/\/$/', '', APP),
       'webroot' => preg_replace('/\/$/', '', WWW_ROOT),
@@ -223,20 +223,10 @@ class UploadBehavior extends ModelBehavior {
     return $settings;
   }
 
-  static function _pathinfo($filename) {
-    $pathinfo = pathinfo($filename);
-    // PHP < 5.2.0 doesn't include 'filename' key in pathinfo. Let's try to fix this.
-    if (empty($pathinfo['filename'])) {
-      $suffix = !empty($pathinfo['extension']) ? '.'.$pathinfo['extension'] : '';
-      $pathinfo['filename'] = basename($pathinfo['basename'], $suffix);
-    }
-    return $pathinfo;
-  }
-
   function _resize($srcFile, $destFile, $geometry, $quality = 75) {
     copy($srcFile, $destFile);
     @chmod($destFile, 0777);
-    $pathinfo = UploadBehavior::_pathinfo($srcFile);
+    $pathinfo = pathinfo($filename);
     $src = null;
     $createHandler = null;
     $outputHandler = null;
