@@ -226,7 +226,7 @@ class UploadBehavior extends ModelBehavior {
   function _resize($srcFile, $destFile, $geometry, $quality = 75) {
     copy($srcFile, $destFile);
     @chmod($destFile, 0777);
-    $pathinfo = pathinfo($filename);
+    $pathinfo = pathinfo($srcFile);
     $src = null;
     $createHandler = null;
     $outputHandler = null;
