@@ -128,10 +128,10 @@ class UploadBehavior extends ModelBehavior {
         if (is_dir($destDir) && is_writable($destDir)) {
           $move = !empty($toWrite['remote']) ? 'rename' : 'move_uploaded_file';
           if (@$move($toWrite['tmp_name'], $settings['path'])) {
-			// Some bug with the wrong permissions on upload
-			if (!empty($toWrite['remote'])) {
-				chmod($settings['path'], 0644);
-			}
+      			// Some bug with the wrong permissions on upload
+      			if (!empty($toWrite['remote'])) {
+      				chmod($settings['path'], 0644);
+      			}
             if($this->maxWidthSize) {
               $this->_resize($settings['path'], $settings['path'], $this->maxWidthSize.'w', $settings['quality']);
             }
