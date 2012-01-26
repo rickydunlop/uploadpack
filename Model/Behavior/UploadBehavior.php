@@ -116,18 +116,14 @@ class UploadBehavior extends ModelBehavior {
         substr($this->toWrite[$field]['name'], strrpos($this->toWrite[$field]['name'], '.')); // extension
   }
   
-  function _writeFiles($model) {
+  protected function _writeFiles($model) {
     if (!empty($this->toWrite)) {
       foreach ($this->toWrite as $field => $toWrite) {
         $settings = $this->_interpolate($model, $field, $toWrite['name'], 'original');
-        $destDir = dirname($settings['path']);
-        if (!file_exists($destDir)) {
-          @mkdir($destDir, 0777, true);
-          @chmod($destDir, 0777);
-        }
-        if (is_dir($destDir) && is_writable($destDir)) {
+
+        if ($this->_isWritable($settings['path'])) {
           $move = !empty($toWrite['remote']) ? 'rename' : 'move_uploaded_file';
-          if (@$move($toWrite['tmp_name'], $settings['path'])) {
+          if ($move($toWrite['tmp_name'], $settings['path'])) {
             // Some bug with the wrong permissions on upload
             if (!empty($toWrite['remote'])) {
               chmod($settings['path'], 0644);
@@ -137,12 +133,35 @@ class UploadBehavior extends ModelBehavior {
             }
             foreach ($settings['styles'] as $style => $geometry) {
               $newSettings = $this->_interpolate($model, $field, $toWrite['name'], $style);
-              $this->_resize($settings['path'], $newSettings['path'], $geometry, $settings['quality']);
+              if($this->_isWritable($newSettings['path'])){
+                $this->_resize($settings['path'], $newSettings['path'], $geometry, $settings['quality']);
+              }
             }
           }
         }
       }
     }
+  }
+
+/**
+ * Checks to see if a directory exists and is writable
+ * It then tries to create the directory
+ * 
+ * @param string $dir The directory to check
+ * @return boolean true if successful
+ * @throws DirectoryException
+ */
+  protected function _isWritable($dir) {
+    $dir = dirname($dir);
+    if (is_dir($dir) && is_writable($dir)) {
+      return true;
+    }
+
+    if (mkdir($dir)) {
+      return true;
+    }
+
+    throw new DirectoryException('Directory is not writable: ' . $dir);
   }
   
   function _prepareToDeleteFiles($model, $field = null, $forceRead = false) {
@@ -423,3 +442,5 @@ class UploadBehavior extends ModelBehavior {
     return false;
   }
 }
+
+class DirectoryException extends CakeException {};
