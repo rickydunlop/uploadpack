@@ -26,7 +26,7 @@ class UploadBehavior extends ModelBehavior {
       'path' => ':webroot/upload/:model/:id/:style-:basename.:extension',
       'styles' => array(),
       'resizeToMaxWidth' => false,
-      'quality' => 75
+      'quality' => 95
     );
     
     foreach ($settings as $field => $array) {
@@ -223,7 +223,7 @@ class UploadBehavior extends ModelBehavior {
     return $settings;
   }
 
-  function _resize($srcFile, $destFile, $geometry, $quality = 75) {
+  function _resize($srcFile, $destFile, $geometry, $quality = 95) {
     copy($srcFile, $destFile);
     @chmod($destFile, 0777);
     $pathinfo = pathinfo($srcFile);
