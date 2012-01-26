@@ -353,13 +353,17 @@ class UploadBehavior extends ModelBehavior {
     if (!is_array($contentTypes)) {
       $contentTypes = array($contentTypes);
     }
+
     if (!empty($value['tmp_name'])) {
+      $finfo = new finfo(FILEINFO_MIME_TYPE);
+      $mimetype = $finfo->file($value['tmp_name']);
+
       foreach ($contentTypes as $contentType) {
         if (substr($contentType, 0, 1) == '/') {
-          if (preg_match($contentType, $value['type'])) {
+          if (preg_match($contentType, $mimetype)) {
             return true;
           }
-        } elseif ($contentType == $value['type']) {
+        } elseif ($contentType == $mimetype) {
           return true;
         }
       }
@@ -367,6 +371,7 @@ class UploadBehavior extends ModelBehavior {
     }
     return true;
   }
+
   
   public function attachmentPresence($model, $value) {
     $keys = array_keys($value);
