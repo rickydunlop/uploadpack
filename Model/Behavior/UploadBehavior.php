@@ -26,7 +26,8 @@ class UploadBehavior extends ModelBehavior {
       'path' => ':webroot/upload/:model/:id/:style-:basename.:extension',
       'styles' => array(),
       'resizeToMaxWidth' => false,
-      'quality' => 95
+      'quality' => 95,
+      'overwrite' => false
     );
     
     foreach ($settings as $field => $array) {
@@ -42,10 +43,6 @@ class UploadBehavior extends ModelBehavior {
           $this->_prepareToDeleteFiles($model, $field, true);
         }
         $this->_prepareToWriteFiles($model, $field);
-        unset($model->data[$model->name][$field]);
-        $model->data[$model->name][$field.'_file_name'] = $this->toWrite[$field]['name'];
-        $model->data[$model->name][$field.'_file_size'] = $this->toWrite[$field]['size'];
-        $model->data[$model->name][$field.'_content_type'] = $this->toWrite[$field]['type'];
       }
     }
     return true;
@@ -70,17 +67,17 @@ class UploadBehavior extends ModelBehavior {
 
   public function beforeValidate($model) {
     foreach (self::$__settings[$model->name] as $field => $settings) {
-		if (isset($model->data[$model->name][$field])) {
-			$data = $model->data[$model->name][$field];
+    if (isset($model->data[$model->name][$field])) {
+      $data = $model->data[$model->name][$field];
 
-			if ((empty($data) || is_array($data) && empty($data['tmp_name'])) && !empty($settings['urlField']) && !empty($model->data[$model->name][$settings['urlField']])) {
-			    $data = $model->data[$model->name][$settings['urlField']];
-			}
-			
-			if (!is_array($data)) {
-			    $model->data[$model->name][$field] = $this->_fetchFromUrl($data);
-			}
-		}
+      if ((empty($data) || is_array($data) && empty($data['tmp_name'])) && !empty($settings['urlField']) && !empty($model->data[$model->name][$settings['urlField']])) {
+          $data = $model->data[$model->name][$settings['urlField']];
+      }
+      
+      if (!is_array($data)) {
+          $model->data[$model->name][$field] = $this->_fetchFromUrl($data);
+      }
+    }
     }
     return true;
   }
@@ -108,34 +105,61 @@ class UploadBehavior extends ModelBehavior {
     return $data;
   }
 
+/**
+ * Prepare files to be written
+ * 
+ * Cleans the filename making it url friendly
+ * Checks path is writable
+ * If overwrite is true, it checks to see if the file exists
+ */
   protected function _prepareToWriteFiles($model, $field) {
+    $pathinfo = pathinfo($model->data[$model->name][$field]['name']);
+    extract($pathinfo);
+
+    $filename = $this->_cleanFilename($filename);
+    $basename = $filename.'.'.$extension;
+
+    $settings = $this->_interpolate($model, $field, $basename, 'original');
+
+    if (!$this->_isWritable($settings['path'])) {
+      throw new DirectoryException('Directory is not writable: ' . $dir);
+    }
+
+    if($settings['overwrite'] === false){
+      if(file_exists($settings['path'])){
+        $filename .= '_'.uniqid();
+        $basename = $filename.'.'.$extension;
+        $settings = $this->_interpolate($model, $field, $basename, 'original');
+      }
+    }
+
+    $model->data[$model->name][$field]['name'] = $basename;
+    $model->data[$model->name][$field]['settings'] = $settings;
+
     $this->toWrite[$field] = $model->data[$model->name][$field];
-    // make filename URL friendly by using Cake's Inflector
-    $this->toWrite[$field]['name'] = 
-        Inflector::slug(substr($this->toWrite[$field]['name'], 0, strrpos($this->toWrite[$field]['name'], '.'))). // filename
-        substr($this->toWrite[$field]['name'], strrpos($this->toWrite[$field]['name'], '.')); // extension
+    unset($model->data[$model->name][$field]);
+
+    $model->data[$model->name][$field.'_file_name'] = $this->toWrite[$field]['name'];
+    $model->data[$model->name][$field.'_file_size'] = $this->toWrite[$field]['size'];
+    $model->data[$model->name][$field.'_content_type'] = $this->toWrite[$field]['type'];
   }
   
   protected function _writeFiles($model) {
     if (!empty($this->toWrite)) {
       foreach ($this->toWrite as $field => $toWrite) {
-        $settings = $this->_interpolate($model, $field, $toWrite['name'], 'original');
-
-        if ($this->_isWritable($settings['path'])) {
-          $move = !empty($toWrite['remote']) ? 'rename' : 'move_uploaded_file';
-          if ($move($toWrite['tmp_name'], $settings['path'])) {
-            // Some bug with the wrong permissions on upload
-            if (!empty($toWrite['remote'])) {
-              chmod($settings['path'], 0644);
-            }
-            if($this->maxWidthSize) {
-              $this->_resize($settings['path'], $settings['path'], $this->maxWidthSize.'w', $settings['quality']);
-            }
-            foreach ($settings['styles'] as $style => $geometry) {
-              $newSettings = $this->_interpolate($model, $field, $toWrite['name'], $style);
-              if($this->_isWritable($newSettings['path'])){
-                $this->_resize($settings['path'], $newSettings['path'], $geometry, $settings['quality']);
-              }
+        $move = !empty($toWrite['settings']['remote']) ? 'rename' : 'move_uploaded_file';
+        if ($move($toWrite['tmp_name'], $toWrite['settings']['path'])) {
+          // Some bug with the wrong permissions on upload
+          if (!empty($toWrite['settings']['remote'])) {
+            chmod($toWrite['settings']['path'], 0644);
+          }
+          if($this->maxWidthSize) {
+            $this->_resize($toWrite['settings']['path'], $toWrite['settings']['path'], $this->maxWidthSize.'w', $toWrite['settings']['quality']);
+          }
+          foreach ($toWrite['settings']['styles'] as $style => $geometry) {
+            $newSettings = $this->_interpolate($model, $field, $toWrite['name'], $style);
+            if($this->_isWritable($newSettings['path'])){
+              $this->_resize($toWrite['settings']['path'], $newSettings['path'], $geometry, $toWrite['settings']['quality']);
             }
           }
         }
@@ -160,8 +184,16 @@ class UploadBehavior extends ModelBehavior {
     if (mkdir($dir)) {
       return true;
     }
+    return false;
+  }
 
-    throw new DirectoryException('Directory is not writable: ' . $dir);
+/**
+ * Makes a filename URL friendly by using Inflector::slug
+ * 
+ * @return string the cleaned filename
+ */
+  protected function _cleanFilename($filename){
+    return Inflector::slug($filename);
   }
   
   protected function _prepareToDeleteFiles($model, $field = null, $forceRead = false) {
