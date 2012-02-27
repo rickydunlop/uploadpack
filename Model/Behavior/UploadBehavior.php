@@ -181,7 +181,7 @@ class UploadBehavior extends ModelBehavior {
       return true;
     }
 
-    if (mkdir($dir)) {
+    if (mkdir($dir, 0777, true)) {
       return true;
     }
     return false;
